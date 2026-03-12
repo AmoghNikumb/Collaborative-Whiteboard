@@ -1,0 +1,16 @@
+# Root .gitignore for Collaborative Whiteboard
+
+# Dependencies
+node_modules/
+.next/
+dist/
+target/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
