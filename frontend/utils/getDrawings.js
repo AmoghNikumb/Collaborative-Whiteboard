@@ -8,5 +8,6 @@ export const getDrawings = async (roomId) => {
         return data;
     } catch(err) {
         console.log(err)
+        return [];
     }
 }

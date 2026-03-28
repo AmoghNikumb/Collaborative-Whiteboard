@@ -122,26 +122,30 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
     const trueWidth = () => (canvasRef.current.clientWidth / scale)
 
     const redrawCanvas = () => {      
+        if (!canvasRef.current || !canvasContainerRef.current) return;
         canvasRef.current.width = canvasContainerRef.current.clientWidth;
         canvasRef.current.height = canvasContainerRef.current.clientHeight;
 
-        canvasRef.current.getContext("2d").fillStyle = background;
-        canvasRef.current.getContext("2d").fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        const context = canvasRef.current.getContext("2d");
+        context.fillStyle = background;
+        context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
         
        if(drawings.length) {
             for (let i = 0; i < drawings.length; i++) {
                 const line = drawings[i];
-                drawLine(toScreenX(line.x0), toScreenY(line.y0), toScreenX(line.x1), toScreenY(line.y1), line.color, lineWidth, instrument);
+                drawLine(toScreenX(line.x0), toScreenY(line.y0), toScreenX(line.x1), toScreenY(line.y1), line.color, line.lineWidth || lineWidth, line.instrument || instrument);
             }
         }   
     }
 
     const drawToCanvas = (drawings) => {      
+        if (!canvasRef.current || !canvasContainerRef.current) return;
         canvasRef.current.width = canvasContainerRef.current.clientWidth;
         canvasRef.current.height = canvasContainerRef.current.clientHeight;
 
-        canvasRef.current.getContext("2d").fillStyle = background;
-        canvasRef.current.getContext("2d").fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        const context = canvasRef.current.getContext("2d");
+        context.fillStyle = background;
+        context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
         
        if(drawings.length) {
             for (let i = 0; i < drawings.length; i++) {

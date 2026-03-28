@@ -107,7 +107,9 @@ export default function Room() {
 	}, [router])
 
 	const sendMessage = (message) => {
-		stomp.current.send(`/app/send/${rid}`, {}, JSON.stringify(message));
+		if (stomp.current && stomp.current.connected) {
+			stomp.current.send(`/app/send/${rid}`, {}, JSON.stringify(message));
+		}
 	}
 
 	const setRoomId = (newId) => {
@@ -122,7 +124,7 @@ export default function Room() {
 		const rid = localStorage.getItem('rid');
 		const username = localStorage.getItem('username');
 		
-		if(rid && username) {
+		if(rid && username && stomp.current && stomp.current.connected) {
 			const userLeftRoom = {
 				username: username,
 				payload: DISCONNECT_USER,
