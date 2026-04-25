@@ -56,6 +56,9 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
     const [drawingHistory, setDrawingHistory] = useState([]);
     const [disabled, setDisabled] = useState(true);
 
+    const [startX, setStartX] = useState(0);
+    const [startY, setStartY] = useState(0);
+
     useEffect(() => {
         // disable right clicking
         document.oncontextmenu = function () {
@@ -121,6 +124,38 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
     const trueHeight = () => (canvasRef.current.clientHeight / scale)
     const trueWidth = () => (canvasRef.current.clientWidth / scale)
 
+    const drawItem = (x0, y0, x1, y1, color, lineWidth, instrument, text) => {
+        let context = canvasRef.current.getContext("2d");
+        context.strokeStyle = color;
+        context.fillStyle = color;
+        context.lineWidth = lineWidth;
+        context.lineCap = 'round';
+
+        if (instrument === 'pencil' || instrument === 'line') {
+            context.beginPath();
+            context.moveTo(x0, y0);
+            context.lineTo(x1, y1);
+            context.stroke();
+        } else if (instrument === 'eraser') {
+            context.strokeStyle = background;
+            context.beginPath();
+            context.moveTo(x0, y0);
+            context.lineTo(x1, y1);
+            context.stroke();
+        } else if (instrument === 'rectangle') {
+            context.beginPath();
+            context.strokeRect(x0, y0, x1 - x0, y1 - y0);
+        } else if (instrument === 'circle') {
+            const radius = Math.sqrt(Math.pow(x1 - x0, 2) + Math.pow(y1 - y0, 2));
+            context.beginPath();
+            context.arc(x0, y0, radius, 0, 2 * Math.PI);
+            context.stroke();
+        } else if (instrument === 'text') {
+            context.font = `${lineWidth * 5}px Arial`;
+            context.fillText(text, x0, y0);
+        }
+    }
+
     const redrawCanvas = () => {      
         if (!canvasRef.current || !canvasContainerRef.current) return;
         canvasRef.current.width = canvasContainerRef.current.clientWidth;
@@ -132,8 +167,8 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         
        if(drawings.length) {
             for (let i = 0; i < drawings.length; i++) {
-                const line = drawings[i];
-                drawLine(toScreenX(line.x0), toScreenY(line.y0), toScreenX(line.x1), toScreenY(line.y1), line.color, line.lineWidth || lineWidth, line.instrument || instrument);
+                const item = drawings[i];
+                drawItem(toScreenX(item.x0), toScreenY(item.y0), toScreenX(item.x1), toScreenY(item.y1), item.color, item.lineWidth || lineWidth, item.instrument, item.text);
             }
         }   
     }
@@ -149,18 +184,33 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         
        if(drawings.length) {
             for (let i = 0; i < drawings.length; i++) {
-                const line = drawings[i];
-                drawLine(toScreenX(line.x0), toScreenY(line.y0), toScreenX(line.x1), toScreenY(line.y1), line.color, line.lineWidth, line.instrument);
+                const item = drawings[i];
+                drawItem(toScreenX(item.x0), toScreenY(item.y0), toScreenX(item.x1), toScreenY(item.y1), item.color, item.lineWidth, item.instrument, item.text);
             }
         }   
     }
+
+    // every time a new drawing comes from server, draw it only if it wasn't sent by the same client that receives it
+    useEffect(() => {
+        // If this client sent the last drawing coordinates to server, do not redraw them
+        // Else if this client hasn't sent last drawing coordinates to server, draw the received coordinates
+        if(!incomingDrawings || incomingDrawings.username === username) return;
+        
+        if (incomingDrawings.instrument === 'clear') {
+            setDrawings([]);
+            setDrawingHistory([]);
+            redrawCanvas();
+        } else {
+            drawItem(toScreenX(incomingDrawings.x0), toScreenY(incomingDrawings.y0), toScreenX(incomingDrawings.x1), toScreenY(incomingDrawings.y1), incomingDrawings.color, incomingDrawings.lineWidth, incomingDrawings.instrument, incomingDrawings.text);
+        }
+    }, [incomingDrawings])
 
     useEffect(() => {
         let start, finish;
         if(leftMouseDown) {
             start = {
-                x: cursorX,
-                y: cursorY
+                x: toTrueX(cursorX),
+                y: toTrueY(cursorY)
             }
 
             // Add to history the first point of the new draw (from where it begins)
@@ -170,8 +220,8 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
 
         if(!leftMouseDown) {
             finish = {
-                x: prevCursorX,
-                y: prevCursorY
+                x: toTrueX(prevCursorX),
+                y: toTrueY(prevCursorY)
             }
 
             // Add to history the last point of the new draw (where it finished)
@@ -198,6 +248,26 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         setCursorY(event.pageY);
         setPrevCursorX(event.pageX);
         setPrevCursorY(event.pageY);
+        setStartX(toTrueX(event.pageX));
+        setStartY(toTrueY(event.pageY));
+
+        if (instrument === 'text') {
+            const text = prompt('Enter your text:');
+            if (text) {
+                const drawing = {
+                    x0: toTrueX(event.pageX),
+                    y0: toTrueY(event.pageY),
+                    text: text,
+                    color: strokeStyle,
+                    username: username,
+                    lineWidth: lineWidth,
+                    instrument: 'text'
+                };
+                setDrawings(drawings => [...drawings, drawing]);
+                sendMessage(drawing);
+                redrawCanvas();
+            }
+        }
     }
 
     const onMouseMove = (event) => {
@@ -211,25 +281,45 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         const prevScaledY = toTrueY(prevCursorY);
 
         if (leftMouseDown) {
-            // add the line to our drawing history
-            const drawing = {
-                x0: prevScaledX,
-                y0: prevScaledY,
-                x1: scaledX,
-                y1: scaledY,
-                color: strokeStyle,
-                username: username,
-                lineWidth: lineWidth,
-                instrument: instrument
-            };
+            if (instrument === 'pencil' || instrument === 'eraser') {
+                // add the line to our drawing history
+                const drawing = {
+                    x0: prevScaledX,
+                    y0: prevScaledY,
+                    x1: scaledX,
+                    y1: scaledY,
+                    color: strokeStyle,
+                    username: username,
+                    lineWidth: lineWidth,
+                    instrument: instrument
+                };
 
-            setDrawings(drawings => [...drawings, drawing]);
-            
-            // broadcast coordinates of the latest drawing in the current room
-            sendMessage(drawing);
-            
-            // draw a line
-            drawLine(prevCursorX, prevCursorY, cursorX, cursorY, strokeStyle, lineWidth, instrument);
+                setDrawings(drawings => [...drawings, drawing]);
+                
+                // broadcast coordinates of the latest drawing in the current room
+                sendMessage(drawing);
+                
+                // draw a line
+                drawItem(prevCursorX, prevCursorY, cursorX, cursorY, strokeStyle, lineWidth, instrument);
+            } else if (instrument === 'rectangle' || instrument === 'circle' || instrument === 'line') {
+                redrawCanvas();
+                const context = canvasRef.current.getContext("2d");
+                context.strokeStyle = strokeStyle;
+                context.lineWidth = lineWidth;
+                context.beginPath();
+
+                if (instrument === 'rectangle') {
+                    context.strokeRect(toScreenX(startX), toScreenY(startY), toScreenX(scaledX) - toScreenX(startX), toScreenY(scaledY) - toScreenY(startY));
+                } else if (instrument === 'circle') {
+                    const radius = Math.sqrt(Math.pow(toScreenX(scaledX) - toScreenX(startX), 2) + Math.pow(toScreenY(scaledY) - toScreenY(startY), 2));
+                    context.arc(toScreenX(startX), toScreenY(startY), radius, 0, 2 * Math.PI);
+                    context.stroke();
+                } else if (instrument === 'line') {
+                    context.moveTo(toScreenX(startX), toScreenY(startY));
+                    context.lineTo(toScreenX(scaledX), toScreenY(scaledY));
+                    context.stroke();
+                }
+            }
         }
         if (rightMouseDown) {
             // move the screen
@@ -242,7 +332,27 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         setPrevCursorY(cursorY);
     }
 
-    const onMouseUp = () => {
+    const onMouseUp = (event) => {
+        if (leftMouseDown && (instrument === 'rectangle' || instrument === 'circle' || instrument === 'line')) {
+            const scaledX = toTrueX(event.pageX);
+            const scaledY = toTrueY(event.pageY);
+            
+            const drawing = {
+                x0: startX,
+                y0: startY,
+                x1: scaledX,
+                y1: scaledY,
+                color: strokeStyle,
+                username: username,
+                lineWidth: lineWidth,
+                instrument: instrument
+            };
+
+            setDrawings(drawings => [...drawings, drawing]);
+            sendMessage(drawing);
+            redrawCanvas();
+        }
+
         setLeftMouseDown(false);
         setRightMouseDown(false);
     }
@@ -268,29 +378,6 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
 
         redrawCanvas();
     }
-
-    const drawLine = (x0, y0, x1, y1, color, lineWidth, instrument) => {
-        let context = canvasRef.current.getContext("2d");
-        context.beginPath();
-        context.moveTo(x0, y0);
-        context.lineCap = 'round';
-        context.lineTo(x1, y1);
-
-        if(instrument === 'pencil') context.strokeStyle = color;
-        else if(instrument === 'eraser') context.strokeStyle = background;
-        else console.log('Error: The instrument selected isn\'t working correctly, please refresh the page!')
-        
-        context.lineWidth = lineWidth;
-        context.stroke();
-    }
-
-    // every time a new drawing comes from server, draw it only if it wasn't sent by the same client that receives it
-    useEffect(() => {
-        // If this client sent the last drawing coordinates to server, do not redraw them
-        // Else if this client hasn't sent last drawing coordinates to server, draw the received coordinates
-        if(!incomingDrawings || incomingDrawings.username === username) return;
-        else drawLine(toScreenX(incomingDrawings.x0), toScreenY(incomingDrawings.y0), toScreenX(incomingDrawings.x1), toScreenY(incomingDrawings.y1), incomingDrawings.color, incomingDrawings.lineWidth, incomingDrawings.instrument);
-    }, [incomingDrawings])
 
     const undo = () => {    
         if(disabled || drawingHistory.length < 2) return;    
@@ -338,8 +425,8 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
         
         if(newDrawings.length) {
             for (let i = 0; i < newDrawings.length; i++) {
-                const line = newDrawings[i];
-                drawLine(toScreenX(line.x0), toScreenY(line.y0), toScreenX(line.x1), toScreenY(line.y1), line.color, lineWidth, instrument);
+                const item = newDrawings[i];
+                drawItem(toScreenX(item.x0), toScreenY(item.y0), toScreenX(item.x1), toScreenY(item.y1), item.color, item.lineWidth || lineWidth, item.instrument, item.text);
             }
         } else {
             console.log('Canvas empty')
@@ -362,6 +449,14 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
     const importFile = ()  => {
         setShowFileUploader(true)
     }   
+
+    const clearCanvas = () => {
+        setDrawings([]);
+        setDrawingHistory([]);
+        redrawCanvas();
+        // optionally notify others to clear their canvas
+        sendMessage({instrument: 'clear'});
+    }
 
     // when a canvas.txt file was uploaded, read it and set the state
     useEffect(() => {
@@ -473,6 +568,7 @@ function Canvas({sendMessage, setRoomId, incomingDrawings, roomId, usersList, us
                 save={save} 
                 disabled={disabled}
                 importFile={importFile}
+                clear={clearCanvas}
             />
             <OnlineUsers usersList={usersList}/>
             {showFileUploader 

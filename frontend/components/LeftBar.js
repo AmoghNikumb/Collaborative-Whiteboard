@@ -3,7 +3,7 @@ import styles from '../styles/LeftBar.module.scss'
 import { ThemeContext } from '../context/ThemeContext'
 import CreateTooltip from './CreateTooltip';
 
-function LeftBar({save, disabled, importFile}) {
+function LeftBar({save, disabled, importFile, clear}) {
     const { theme, toggle, dark } = React.useContext(ThemeContext)
     const [backgroundColor, setBackgroundColor] = useState('#E2E6EA');
 
@@ -32,6 +32,16 @@ function LeftBar({save, disabled, importFile}) {
                 type={'info'}
                 effect='solid'
                 text={'Import Canvas'}
+            />
+
+            <CreateTooltip
+                id='clear'
+                background={{background: `${backgroundColor}`}}
+                action={clear}
+                icon='🗑️'
+                type={'info'}
+                effect='solid'
+                text={'Clear Canvas'}
             />
         </div>
     )

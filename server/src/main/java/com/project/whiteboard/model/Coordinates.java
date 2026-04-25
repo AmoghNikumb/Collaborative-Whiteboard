@@ -12,4 +12,5 @@ public class Coordinates {
     private String username;
     private Long lineWidth;
     private String instrument;
+    private String text;
 }

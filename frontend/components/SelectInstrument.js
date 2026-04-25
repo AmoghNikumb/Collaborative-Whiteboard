@@ -93,6 +93,34 @@ function SelectInstrument({
       >
         🧹
       </div>
+      <div
+        className={styles.instrument}
+        style={{ background: instrument === "rectangle" && "#bbb" }}
+        onClick={() => setInstrument("rectangle")}
+      >
+        ⬜
+      </div>
+      <div
+        className={styles.instrument}
+        style={{ background: instrument === "circle" && "#bbb" }}
+        onClick={() => setInstrument("circle")}
+      >
+        ⭕
+      </div>
+      <div
+        className={styles.instrument}
+        style={{ background: instrument === "line" && "#bbb" }}
+        onClick={() => setInstrument("line")}
+      >
+        📏
+      </div>
+      <div
+        className={styles.instrument}
+        style={{ background: instrument === "text" && "#bbb" }}
+        onClick={() => setInstrument("text")}
+      >
+        🔤
+      </div>
     </div>
   );
 }
